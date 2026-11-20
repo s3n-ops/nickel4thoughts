@@ -13,12 +13,10 @@ rendered Markdown. A `Stop` hook validates it and blocks the turn when a rule is
 broken, naming the rule.
 
 Claude writes the answer as a Nickel record. Nickel4Thoughts renders it as
-Markdown for the user, as shown in the screenshot below.
+Markdown for the user, as shown in the recording below.
 
-<a href="assets/nickel4thoughts-output-example.webp">
-  <img src="assets/nickel4thoughts-output-example.webp" width="640"
-       alt="Claude Code showing an answer rendered by n4t, with bottom line, details, evidence, caveats, next step and confidence">
-</a>
+<img src="assets/n4t-demo.gif" width="640"
+     alt="Claude Code answering a Kubernetes question. n4t renders the answer with bottom line, details, caveats, next step and confidence">
 
 ## Prerequisites
 
