@@ -33,16 +33,17 @@ Markdown for the user, as shown in the screenshot below.
 
 ```sh
 just install     # builds, then registers all three hooks in ~/.claude/settings.json
-just uninstall   # removes our entries, leaves foreign ones alone
+just uninstall   # removes the n4t hooks, leaves the rest of settings.json alone
 ```
 
-Both recipes are written in Nushell, so `nu` has to be on PATH. They edit
-`settings.json` as structured data rather than text, replace only our own
-entries, and leave foreign hooks and every other setting untouched. Running
-either twice changes nothing the second time.
+Both recipes are written in Nushell, so `nu` has to be on PATH. They read
+`settings.json` as JSON and change only the hook entries that run n4t. Hooks
+of other tools and all other settings stay as they are. Both recipes are
+idempotent: running one twice gives the same result as running it once.
 
-`just install` writes absolute paths, since Claude Code does not expand
-`${CLAUDE_PROJECT_DIR}` when a hook is registered with `args`.
+> [!NOTE]
+> `just install` writes absolute paths into `settings.json`. Claude Code does
+> not expand `${CLAUDE_PROJECT_DIR}` for a hook registered with `args`.
 
 ## Configuration
 
@@ -51,13 +52,15 @@ The word budgets and the sentence length can be changed in
 that file the defaults apply.
 
 `just install` places `config.skel.ncl` next to it, with the defaults and
-examples. The skeleton is overwritten on every install, `config.ncl` never:
+examples. Every install overwrites the skeleton. `config.ncl` is never
+overwritten. To start a config, copy the skeleton:
 
 ```sh
 cp ~/.config/n4t/config.skel.ncl ~/.config/n4t/config.ncl
 ```
 
-A config names only what it changes:
+A config only needs the values you want to change. Everything else keeps its
+default:
 
 ```nickel
 {
@@ -68,12 +71,15 @@ A config names only what it changes:
 }
 ```
 
-`default_language` sets the language of answers that do not name one. It is
-English unless the config says otherwise.
+Each answer sets its language in the `language` field. The rule Claude
+receives asks for the language the answer is written in. n4t does not detect
+the language itself. `default_language` only applies when an answer leaves
+the field out. Without the setting it is English.
 
-All hooks use the same limits, so Claude is checked against the limits it was
-given. If a file has an error, n4t uses the defaults and tells Claude about
-the error. `n4t config` shows the current limits, the languages and any error.
+All three hooks read the same config. The limits in the rule Claude receives
+are the limits the Stop hook checks. If a file has an error, n4t uses the
+defaults and tells Claude about the error. `n4t config` shows the current
+limits, the languages and any error.
 
 ## Use without Claude Code
 
@@ -83,8 +89,8 @@ n4t fmt answer.ncl     # render as Markdown
 n4t config             # show the limits in effect
 ```
 
-`check` and `fmt` take a file with the record alone or with a whole answer
-that contains it.
+`check` and `fmt` take a file that holds either the Nickel record on its own
+or a whole answer with the record in a `nickel` code block.
 
 ## Languages
 
@@ -96,8 +102,8 @@ Everything that does depend on the language lives in a language pack: the
 headings of the rendered answer, the phrase lists that catch preambles,
 hedging, filler, meta comments and apologies, and optional checks written in
 Nickel. n4t ships packs for English and German, the two languages I write in.
-An answer picks its pack with `language`. A language without a pack gets
-English headings and the universal rules.
+n4t uses the pack named in the answer's `language` field. A language without
+a pack gets English headings and the universal rules by default.
 
 A pack is a Nickel file named after its language,
 `~/.config/n4t/languages/<tag>.ncl`:
@@ -128,19 +134,21 @@ A pack is a Nickel file named after its language,
 - **Checks** take the prose of one field, Markdown removed, and return `'Ok`
   or `'Violation "message"`. They run in the Stop hook only, after every
   other rule has passed.
-- A pack with the name of a shipped one replaces the headings and lists it
-  names and keeps the rest. An empty list switches a category off. Its checks
-  replace the shipped ones.
+- A pack in `~/.config/n4t/languages/` named like a built-in pack (`en.ncl`,
+  `de.ncl`) changes that pack. The headings and phrase lists it sets replace
+  the built-in ones, everything else stays. An empty list switches a category
+  off. If it has checks, they replace the built-in checks.
 
 A pack is Nickel code, so it can compute its lists. The shipped German pack
 derives the ASCII spellings (`zunaechst` for `zunächst`) from its word list
-instead of listing both. The packs in [`languages/`](languages/) show every
-field.
+instead of listing both. The built-in packs in [`languages/`](languages/)
+serve as examples for headings and phrase lists, the example above for a
+check.
 
 Word budgets and sentence length count words with the word segmenter of
 [ICU4X](https://github.com/unicode-org/icu4x), the Unicode Consortium's
 internationalization library. It also finds word boundaries in languages that
-put no spaces between words; its
+put no spaces between words. Its
 [documentation](https://docs.rs/icu_segmenter/) lists them.
 
 ## Development
@@ -198,7 +206,7 @@ imports.
 ### Fail-open
 
 When something goes wrong, n4t lets the answer through. The display hook only
-changes what is shown on screen; the transcript keeps the original text. If
+changes what is shown on screen. The transcript keeps the original text. If
 the hook fails or times out, Claude Code shows the raw record. The Stop hook
 passes anything that is not clearly a finished answer, because a wrong block
 costs a whole turn and a wrong pass costs nothing.
@@ -230,34 +238,30 @@ flushed concurrently, so they are ordered by index.
 
 ## How the work is split
 
-Nickel parses the record and checks its shape with a
-[contract](https://nickel-lang.org/user-manual/contracts). Everything past that
-runs in Rust.
+Nickel reads the record and checks its structure with a
+[contract](https://nickel-lang.org/user-manual/contracts). Rust does
+everything else.
 
 | Task | Where |
 |---|---|
-| Nickel syntax, structure, enums | `schema/answer.ncl` via `nickel-lang-core` |
-| Rule categories, universal rules, word budgets | `src/rules.rs` |
-| Headings, phrase lists, checks per language | `languages/` |
+| Record structure (fields, types, enum values) | `schema/answer.ncl` |
+| Evaluating Nickel with `nickel-lang-core`, error messages | `src/nickel.rs` |
+| Rules and word budgets | `src/rules.rs` |
+| Language packs (headings, phrase lists, checks) | `languages/` |
 | Running the checks of a pack | `src/checks.rs` |
+| Loading limits and language packs | `src/config.rs` |
 | Markdown rendering | `src/render.rs` |
-| Limits and language packs | `src/config.rs` |
-| Error reporting | `src/nickel.rs` |
-| Hook glue | `src/hooks/` |
+| Hook input and output | `src/hooks/` |
 
-Nickel stays because the record is real
-[Nickel syntax](https://nickel-lang.org/user-manual/syntax): `m%"..."%`, enum
-tags, `import`. Writing a parser for that would be a second project.
+Why Nickel? The record is real
+[Nickel syntax](https://nickel-lang.org/user-manual/syntax), with
+`m%"..."%` strings, enum tags and `import`. A parser of our own for that would
+be a second project.
 
-Everything else moved because it was the cost. v1 was a private prototype:
-three Bash hooks around the `nickel` CLI. It evaluated the prose rules as
-Nickel contracts, which recompiled 13 regexes for every rule and every field.
-That was 22 ms of a 32 ms evaluation. In Rust the regexes compile once per
-process.
-
-Bash cost about as much again. Each call of the display hook ran `jq` several
-times, rewrote a state file and swept old files with `find`. That added 23 ms
-per call. The Rust binary does the same work within one process.
+Why Rust for the rest? Speed. The rules use regular expressions. Rust compiles
+them once per process. As Nickel contracts, they were compiled again for every
+rule and every field, which took 22 of 32 ms per answer. One binary also
+replaces the shell scripts and `jq` calls a hook would otherwise need.
 
 ## Error messages
 
@@ -273,9 +277,9 @@ Cut 99 of them.
 The prose rules run in Rust and build this text themselves. Errors from Nickel
 (syntax, structure, enum tags) come from `nickel-lang-core` as structured
 diagnostics through its `IntoDiagnostics` trait. n4t keeps their message and
-notes and leaves out source excerpts and box drawing, which tell Claude
-nothing. A syntax error also gets its line and column, and a hint when the
-source shows the cause.
+notes. It leaves out source excerpts and box drawing, because they do not help
+Claude fix the answer. A syntax error also gets its line and column, and a hint
+when the source shows the cause.
 
 ## Notes
 
@@ -286,12 +290,12 @@ source shows the cause.
   `nickel` CLI rather than an embedder: `repl` is an interactive shell,
   `format` a tree-sitter formatter, `markdown` a terminal renderer, `doc` a
   documentation generator. Dropping all four takes the dependency count from
-  314 to 142. What remains is the interpreter itself: parser, exact arithmetic,
+  314 to 165. What remains is the interpreter itself: parser, exact arithmetic,
   diagnostics, the hashes behind `std.hash`, the export formats.
 - `icu_segmenter` adds about 2.4 MB of dictionaries and models to the binary
   and is licensed under Unicode-3.0.
 - The Nickel stdlib is embedded in the binary. Nickel reads only `schema/` at
-  runtime; `N4T_SCHEMA_DIR` overrides where it is looked for.
+  runtime. `N4T_SCHEMA_DIR` overrides where it is looked for.
 - `N4T_HOOK_LOG=<path>` records every Stop hook decision and every display
   hook flush that had to wait.
 - `N4T_CONFIG_DIR=<path>` overrides the config directory.
