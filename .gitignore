@@ -1,0 +1,23 @@
+# Build output. `target/` reached 1.9 GB with nickel-lang-core and LTO, so it
+# must never be committed by accident.
+/target/
+
+# Local Cargo settings, such as a build directory outside the repository.
+/.cargo/
+
+# Cargo.lock is committed: this crate produces a binary, and a reproducible
+# build of the hook matters more than dependency flexibility.
+
+# Editor and OS noise.
+*.swp
+*~
+.DS_Store
+
+# Benchmark and profiling artefacts.
+*.perf
+perf.data*
+flamegraph.svg
+
+# Scratch files from manual hook testing. Real fixtures belong in tests/.
+/scratch/
+*.ncl.tmp
