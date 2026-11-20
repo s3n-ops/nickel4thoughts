@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Pinned exactly: pre-1.0 and breaks its API between minor versions.
+      # Upgrades are done by hand together with the code changes they need.
+      - dependency-name: nickel-lang-core
+    groups:
+      cargo:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,0 +1,34 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # The ruleset on main requires this job by name.
+    name: just check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # The release profile uses LTO, so a cold build takes minutes.
+      - uses: Swatinem/rust-cache@v2
+
+      # jq is preinstalled on the runner image, just is not.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Check
+        run: just check

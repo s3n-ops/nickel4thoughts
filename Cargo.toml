@@ -1,0 +1,38 @@
+[package]
+name = "n4t"
+version = "0.7.0"
+edition = "2021"
+# `File::lock` in the display hook was stabilised in 1.89.
+rust-version = "1.89"
+
+[dependencies]
+# Pinned exactly: nickel-lang-core is pre-1.0 and breaks its API between minor
+# versions. Cargo.lock is committed for the same reason.
+#
+# Its default features are for the `nickel` CLI, not for an embedder: `repl` is
+# an interactive shell, `format` a tree-sitter formatter, `markdown` a terminal
+# renderer, `doc` a documentation generator. n4t only evaluates and reports, so
+# all four are off.
+nickel-lang-core = { version = "=0.19.0", default-features = false }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+# Word boundaries for scripts that put no spaces between words (Chinese,
+# Japanese, Thai, Lao, Khmer, Burmese), from the Unicode Consortium. The
+# dictionaries and models are compiled in, so no data files ship beside the
+# binary.
+icu_segmenter = "2.4"
+
+[profile.dev]
+# Full debug info on 142 dependencies dominates both link time and disk. Line
+# tables keep backtraces useful and cost a fraction of that.
+debug = "line-tables-only"
+
+[profile.release]
+# Measured on the prototype: 22.6 MB / 36 ms unstripped, 11.8 MB / 31 ms with
+# all four settings.
+strip = "symbols"
+lto = true
+codegen-units = 1
+panic = "abort"
