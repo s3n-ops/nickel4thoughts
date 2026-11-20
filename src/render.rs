@@ -1,7 +1,6 @@
 //! Renders a validated answer record as Markdown.
 //!
-//! Ported from the v1 prototype. The record is the answer's source form; this
-//! is what the reader sees.
+//! The record is the answer's source form. This is what the reader sees.
 
 use crate::answer::{Answer, Confidence};
 use crate::config::Config;

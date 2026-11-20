@@ -1,7 +1,8 @@
-//! Rule tests, ported one to one from the v1 prototype.
+//! Rule tests.
 //!
-//! Each case states a string, the rule, and the expected outcome. They are the
-//! assurance that porting the rules from Nickel to Rust changed nothing.
+//! Each case states a string, the rule, and the expected outcome. The cases
+//! were first written against the rules as Nickel contracts and show that the
+//! rules in Rust behave the same.
 //!
 //! The second half matters more than the first: a rule that blocks ordinary
 //! sentences is worse than one that misses a violation, because it costs a turn
@@ -574,8 +575,7 @@ fn raw_count_keeps_code() {
 }
 
 // --- word budgets --------------------------------------------------------
-// Not in test.ncl, which probed them through the schema. They are rules in
-// v2, so they get direct cases.
+// The budgets are rules like the others, so they get direct cases.
 
 #[test]
 fn budget_names_the_count() {

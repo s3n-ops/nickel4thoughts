@@ -279,8 +279,7 @@ mod tests {
     }
 
     // An opening fence with a language tag does not close the block. Only a
-    // bare ``` does, which matches the v1 prototype and keeps the
-    // extractor to one rule.
+    // bare ``` does, which keeps the extractor to one rule.
     #[test]
     fn a_tagged_fence_does_not_close_the_block() {
         let text = "```nickel\na = 1\n```sh\nb = 2\n```";

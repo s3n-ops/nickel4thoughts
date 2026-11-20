@@ -115,7 +115,7 @@ fn config_note(err: &ConfigError) -> String {
 
 /// Plain text on stdout is inserted into the context as a system reminder when
 /// the hook exits 0. The JSON form with `hookSpecificOutput.additionalContext`
-/// exists too; v1 uses plain text and it works, so this does the same.
+/// exists too. Plain text is enough, so this uses it.
 pub fn run() -> i32 {
     let (limits, note) = match config::load() {
         Ok(limits) => (limits, String::new()),
@@ -138,9 +138,9 @@ mod tests {
 
     #[test]
     fn rule_text_keeps_the_backtick_quoted_field_names() {
-        // v1 built this text with a bash heredoc, where an unescaped backtick
-        // turned prose into command substitution. That failure mode is gone in
-        // Rust, but the assertion is cheap and the text is what Claude reads.
+        // In a shell heredoc an unescaped backtick turns prose into command
+        // substitution. Rust has no such trap, but the assertion is cheap and
+        // the text is what Claude reads.
         let text = rule_text(Path::new("/s"), &Config::default());
         assert!(text.contains("`bottom_line`"));
     }
