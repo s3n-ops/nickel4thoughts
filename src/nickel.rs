@@ -1,16 +1,15 @@
 //! Evaluating a Nickel record and reporting what went wrong.
 //!
-//! v1 read Nickel's rendered diagnostics and cut them down with awk. That
-//! trimmer was the actual defect behind the "raw block on screen" report: it
-//! dropped every line with a leading digit in order to strip source line
-//! numbers, and Nickel's informative line often opens with a number ("299
-//! words, limit is 200").
+//! Nickel's rendered diagnostics are text meant for a terminal. Cutting them
+//! down by pattern loses information: dropping every line with a leading
+//! digit strips the source line numbers, but also the informative line, which
+//! often opens with a number ("299 words, limit is 200").
 //!
 //! Here the diagnostics arrive as `Diagnostic` structs through the public
 //! `IntoDiagnostics` trait, with the headline in `message` and the instruction
 //! in `notes`. No regex, no locale dependency, no `head -4`.
 //!
-//! `report(..., ErrorFormat::Json, ...)` was the route the plan sketched, but
+//! `report(..., ErrorFormat::Json, ...)` looks like the obvious route, but
 //! `report_with` writes JSON to stderr unconditionally (`report.rs:128`),
 //! ignoring its writer argument. `IntoDiagnostics` is public and gives the same
 //! data without the detour.

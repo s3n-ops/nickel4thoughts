@@ -1,8 +1,9 @@
 //! The three hook subcommands, one per Claude Code event.
 //!
 //! Each reads the hook payload as JSON from stdin and writes its answer to
-//! stdout. v1 did this with bash and several `jq` calls per invocation, which
-//! cost 23 ms of the MessageDisplay hook's 54 ms.
+//! stdout. Parsing it in the same process saves the `jq` calls a shell hook
+//! would need, which cost 23 ms of 54 ms per MessageDisplay call in a shell
+//! version.
 
 pub mod display;
 pub mod inject;

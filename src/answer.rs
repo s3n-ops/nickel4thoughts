@@ -64,8 +64,8 @@ pub struct FieldViolation {
 
 impl fmt::Display for FieldViolation {
     /// Mirrors Nickel's own layout: a headline naming the field, then the rule
-    /// on an indented continuation line, then the notes. The Stop hook's error
-    /// text kept that shape in v1 and Claude reacts to it.
+    /// on an indented continuation line, then the notes. Claude reacts to
+    /// that shape, so the rules written in Rust keep it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

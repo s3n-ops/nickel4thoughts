@@ -8,8 +8,8 @@
 //! not the writer's prose. Structural markers are stripped but their text is
 //! kept, because a list item is still a sentence that has to hold up.
 //!
-//! Ported from the v1 prototype. Every regex is compiled once at first use
-//! instead of per field, which is where the 22 ms of Nickel contract time went.
+//! Every regex is compiled once at first use instead of per field. As Nickel
+//! contracts, that recompilation took 22 of 32 ms.
 
 use icu_segmenter::options::WordBreakInvariantOptions;
 use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};

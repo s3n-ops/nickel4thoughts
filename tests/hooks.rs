@@ -1,6 +1,6 @@
 //! End-to-end tests for the Stop hook's error reporting.
 //!
-//! Ported from the v1 prototype. The hook's job is not only to block an invalid
+//! The hook's job is not only to block an invalid
 //! record but to say why. A block whose reason names a schema path and box
 //! drawing instead of the broken rule costs a turn and teaches nothing, so the
 //! reason text is what is asserted here.
@@ -54,10 +54,9 @@ fn em_dash_violation_names_the_rule() {
 }
 
 /// The word budget. Its violation line opens with a digit ("299 words, limit is
-/// 200"). v1's trimmer dropped every line starting with a number in order to
-/// strip Nickel's source line numbers and threw this one away with them,
-/// leaving the writer with a schema path and box drawing in its place. That bug
-/// is what v2 exists to make impossible.
+/// 200"). A trimmer that drops every line starting with a number, to strip
+/// Nickel's source line numbers, throws this one away too and leaves the
+/// writer with a schema path and box drawing in its place.
 #[test]
 fn word_budget_violation_names_the_count() {
     let long = "Wort wort wort wort. ".repeat(65);
@@ -200,11 +199,11 @@ fn a_valid_record_is_not_blocked() {
     assert_eq!(r, None, "{r:?}");
 }
 
-// --- the regression case from the plan -----------------------------------
+// --- the original bug report ---------------------------------------------
 
-/// The block quoted in section 2 of the plan. It fails reproducibly on the
-/// word budget, and the reason must name that count rather than the em-dash
-/// message the screenshot showed.
+/// The record from the first bug report. It fails reproducibly on the word
+/// budget, and the reason must name that count rather than the em-dash
+/// message that was shown at the time.
 #[test]
 fn the_original_report_names_the_budget() {
     let filler = "Wort wort wort wort. ".repeat(75);
