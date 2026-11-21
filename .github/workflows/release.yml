@@ -1,0 +1,102 @@
+name: Release
+
+# A pushed version tag builds the binaries and attaches them to a draft
+# release. Publishing the draft stays a manual step on GitHub.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  draft:
+    name: Draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check tag against Cargo.toml and main
+        run: |
+          version="$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | select(.name == "n4t") | .version')"
+          if [[ "v$version" != "$TAG" ]]; then
+            echo "::error::Tag $TAG does not match version $version in Cargo.toml"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/main; then
+            echo "::error::Tag $TAG does not point to a commit on main"
+            exit 1
+          fi
+
+      # A rerun finds the draft from the first run and keeps it. A published
+      # release is immutable, so the run stops there.
+      - name: Create draft
+        run: |
+          if draft="$(gh release view "$TAG" --json isDraft --jq .isDraft 2> /dev/null)"; then
+            if [[ "$draft" != true ]]; then
+              echo "::error::Release $TAG is already published"
+              exit 1
+            fi
+            echo "Draft $TAG exists, keeping it."
+          else
+            gh release create "$TAG" --draft --verify-tag --generate-notes --title "n4t ${TAG#v}"
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      TARGET: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # musl links statically, so the binary runs on any glibc.
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: cargo build --release --locked --target "$TARGET"
+
+      # The archive holds what `just install` puts in place: the binary, the
+      # schema the rule text imports and the config skeleton.
+      - name: Package and upload
+        run: |
+          target_dir="$(cargo metadata --format-version 1 --no-deps | jq -r .target_directory)"
+          name="n4t-${TAG#v}-$TARGET"
+          mkdir -p "$name/config"
+          cp "$target_dir/$TARGET/release/n4t" "$name/"
+          cp -R schema "$name/"
+          cp config/config.skel.ncl "$name/config/"
+          cp LICENSE README.md "$name/"
+          tar -czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          gh release upload "$TAG" "$name.tar.gz" "$name.tar.gz.sha256" --clobber
