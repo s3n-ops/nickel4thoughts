@@ -18,7 +18,46 @@ Markdown for the user, as shown in the recording below.
 <img src="assets/n4t-demo.gif" width="640"
      alt="Claude Code answering a Kubernetes question. n4t renders the answer with bottom line, details, caveats, next step and confidence">
 
-## Prerequisites
+## Install release
+
+Each [release](https://github.com/s3n-ops/nickel4thoughts/releases) provides
+a prebuilt n4t for Linux x86_64. It needs glibc 2.34 or later.
+
+```sh
+version=0.7.0
+name="n4t-$version-x86_64-unknown-linux-gnu"
+curl -fLO "https://github.com/s3n-ops/nickel4thoughts/releases/download/v$version/$name.tar.gz"
+curl -fLO "https://github.com/s3n-ops/nickel4thoughts/releases/download/v$version/$name.tar.gz.sha256"
+sha256sum -c "$name.tar.gz.sha256"
+tar -xzf "$name.tar.gz"
+
+install -Dm755 "$name/n4t" ~/.local/bin/n4t
+mkdir -p ~/.local/share/n4t && cp -r "$name/schema" ~/.local/share/n4t/
+install -Dm644 "$name/config/config.skel.ncl" ~/.config/n4t/config.skel.ncl
+```
+
+Then add the three hooks to `~/.claude/settings.json`. If the file already has
+a `hooks` key, merge these entries into it:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "$HOME/.local/bin/n4t inject-rule" }] }],
+    "MessageDisplay": [{ "hooks": [{ "type": "command", "command": "$HOME/.local/bin/n4t render", "timeout": 5 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "$HOME/.local/bin/n4t validate" }] }]
+  }
+}
+```
+
+`~/.local/bin/n4t config` shows the limits in effect. The hooks call n4t by its
+full path, so `~/.local/bin` does not have to be on `PATH`.
+
+To uninstall, remove the three hook entries from `settings.json` and delete
+`~/.local/bin/n4t`, `~/.local/share/n4t` and `~/.config/n4t/config.skel.ncl`.
+
+## Install from source
+
+### Prerequisites
 
 - Linux. n4t is tested and in use on Linux. Other platforms are untested.
 - Claude Code
@@ -27,7 +66,7 @@ Markdown for the user, as shown in the recording below.
 - [Nushell](https://www.nushell.sh/), for the install recipes
 - `jq`, used by the Justfile
 
-## Install
+### Install and uninstall
 
 ```sh
 just install     # builds, then registers all three hooks in ~/.claude/settings.json
@@ -49,7 +88,7 @@ The word budgets and the sentence length can be changed in
 `~/.config/n4t/config.ncl` (or `$XDG_CONFIG_HOME/n4t/config.ncl`). Without
 that file the defaults apply.
 
-`just install` places `config.skel.ncl` next to it, with the defaults and
+Both install paths place `config.skel.ncl` next to it, with the defaults and
 examples. Every install overwrites the skeleton. `config.ncl` is never
 overwritten. To start a config, copy the skeleton:
 
