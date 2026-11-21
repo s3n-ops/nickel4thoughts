@@ -20,7 +20,7 @@ jobs:
       TAG: ${{ github.ref_name }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -71,16 +71,18 @@ jobs:
             os: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@stable
+      # The stable branch of rust-toolchain has no version tags, so Dependabot
+      # cannot update this SHA. Refresh it by hand from the branch head.
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-
+      # No build cache: a release runs once per version, and a clean build
+      # from Cargo.lock keeps code from earlier runs out of this job, which
+      # has write access to the release.
       - name: Build
         run: cargo build --release --locked --target "$TARGET"
 

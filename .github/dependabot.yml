@@ -11,8 +11,19 @@ updates:
     groups:
       cargo:
         update-types: [minor, patch]
+      # All security fixes in one pull request, since pull requests merge
+      # one at a time.
+      cargo-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
+  # Workflows pin actions to commit SHAs. Dependabot replaces the SHA and the
+  # version comment behind it when a new release tag appears.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
