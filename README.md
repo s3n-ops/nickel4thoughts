@@ -1,5 +1,7 @@
 # Nickel4Thoughts (n4t)
 
+[![Quality](https://github.com/s3n-ops/nickel4thoughts/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/s3n-ops/nickel4thoughts/actions/workflows/quality.yml)
+
 [BLUF (Bottom Line Up Front)](https://en.wikipedia.org/wiki/BLUF_(communication))
 answer validation for Claude Code, as one Rust binary.
 
