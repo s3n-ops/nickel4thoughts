@@ -23,6 +23,30 @@ Role model: News language.
 Admit mistakes immediately and without sugarcoating.
 Do not call a mistake "confusion".
 
+## Versioning
+
+n4t follows [Semantic Versioning](https://semver.org). The version lives in
+`Cargo.toml`. The public interface is the CLI (subcommands, arguments, exit
+codes), the hook input and output, the record schema in `schema/`, the config
+format and the language pack format.
+
+Pick the level from the largest change since the last version tag:
+
+| Change | Below 1.0.0 | From 1.0.0 |
+|---|---|---|
+| Breaks the public interface | minor | major |
+| New feature, backward compatible | minor | minor |
+| Bug fix, performance, internal change of the binary | patch | patch |
+| Docs, tests, CI, tooling only | none | none |
+
+When a change is ready for a release, propose the level with a one-line
+reason and wait for the maintainer to confirm. Then raise it with
+`cargo set-version --bump <level>`, which updates `Cargo.toml` and
+`Cargo.lock`, and commit that alone as `Raise version to X.Y.Z`.
+
+Version tags and releases belong to the maintainer. **Never** create, move,
+delete or push a `v*` tag, and never create a release.
+
 ## Git Commits
 
 Commit under the user's own credentials. **Never** add an AI signature, a
