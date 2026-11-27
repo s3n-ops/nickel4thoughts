@@ -20,9 +20,8 @@
 //! wording, so they name the rule, the phrase found and the fix.
 
 use crate::config::PhraseLists;
-use crate::prose::{first_prose_line, prose_word_count, strip_markdown, word_boundaries};
+use crate::prose::{first_prose_line, prose_word_count, re, strip_markdown, word_boundaries};
 use regex::{Regex, RegexBuilder};
-use std::sync::LazyLock;
 
 /// A rule violation, addressed to the writer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,8 +152,8 @@ impl Phrases {
 }
 
 /// Rejects `text` when `pattern` finds a phrase in it, naming that phrase.
-fn reject(pattern: &Option<Regex>, text: &str, message: impl Fn(&str) -> String) -> Check {
-    match pattern.as_ref().and_then(|re| find_phrase(re, text)) {
+fn reject(pattern: Option<&Regex>, text: &str, message: impl Fn(&str) -> String) -> Check {
+    match pattern.and_then(|re| find_phrase(re, text)) {
         None => Ok(()),
         Some(found) => Err(Violation {
             message: message(found),
@@ -189,13 +188,13 @@ fn find_phrase<'t>(pattern: &Regex, text: &'t str) -> Option<&'t str> {
 /// Only the opening words count, after headings and markup are gone.
 pub fn no_preamble(phrases: &Phrases, value: &str) -> Check {
     let opening = first_prose_line(value);
-    reject(&phrases.preamble, &opening, |p| {
+    reject(phrases.preamble.as_ref(), &opening, |p| {
         format!("starts with the preamble \"{p}\"; put the conclusion in the first sentence")
     })?;
-    reject(&phrases.question_comment, &opening, |p| {
+    reject(phrases.question_comment.as_ref(), &opening, |p| {
         format!("starts by commenting on the question (\"{p}\") instead of answering it")
     })?;
-    reject(&phrases.summary, &opening, |p| {
+    reject(phrases.summary.as_ref(), &opening, |p| {
         format!("announces a summary with \"{p}\"; in BLUF the first sentence is the summary")
     })
 }
@@ -203,7 +202,7 @@ pub fn no_preamble(phrases: &Phrases, value: &str) -> Check {
 /// Hedging turns a finding into a maybe. Uncertainty belongs in `confidence`
 /// and `caveats`, where it is explicit and cannot blur the claim.
 pub fn no_hedging(phrases: &Phrases, value: &str) -> Check {
-    reject(&phrases.hedging, &strip_markdown(value), |p| {
+    reject(phrases.hedging.as_ref(), &strip_markdown(value), |p| {
         format!(
             "hedges the claim with \"{p}\"; state it plainly and put the doubt in `confidence` or `caveats`"
         )
@@ -212,26 +211,28 @@ pub fn no_hedging(phrases: &Phrases, value: &str) -> Check {
 
 /// The bottom line has to stand alone. A pointer forward breaks that.
 pub fn self_contained(phrases: &Phrases, value: &str) -> Check {
-    reject(&phrases.forward_reference, &strip_markdown(value), |p| {
-        format!("refers to later sections with \"{p}\"; the bottom line must stand on its own")
-    })
+    reject(
+        phrases.forward_reference.as_ref(),
+        &strip_markdown(value),
+        |p| format!("refers to later sections with \"{p}\"; the bottom line must stand on its own"),
+    )
 }
 
 /// Talking about the answer is not answering, and an apology is regret, not
 /// content.
 pub fn no_meta(phrases: &Phrases, value: &str) -> Check {
     let prose = strip_markdown(value);
-    reject(&phrases.meta, &prose, |p| {
+    reject(phrases.meta.as_ref(), &prose, |p| {
         format!("comments on the answer itself (\"{p}\") instead of stating content")
     })?;
-    reject(&phrases.apology, &prose, |p| {
+    reject(phrases.apology.as_ref(), &prose, |p| {
         format!("contains an apology (\"{p}\"); state the correction, not the regret")
     })
 }
 
 /// Filler survives deletion without loss.
 pub fn no_filler(phrases: &Phrases, value: &str) -> Check {
-    reject(&phrases.filler, &strip_markdown(value), |p| {
+    reject(phrases.filler.as_ref(), &strip_markdown(value), |p| {
         format!("contains the filler \"{p}\"; delete the phrase and the sentence still holds")
     })
 }
@@ -239,25 +240,17 @@ pub fn no_filler(phrases: &Phrases, value: &str) -> Check {
 /// A language written in a substitute spelling, such as German with `ue` for
 /// `ü`. The pack lists the words that give it away.
 pub fn no_substitute_spelling(phrases: &Phrases, value: &str) -> Check {
-    reject(&phrases.spelling, &strip_markdown(value), |p| {
+    reject(phrases.spelling.as_ref(), &strip_markdown(value), |p| {
         format!("writes \"{p}\" in a substitute spelling; use the letters of the language")
     })
 }
 
 // --- the universal layer -------------------------------------------------
 
-/// Patterns of the universal rules, compiled once per process.
-macro_rules! universal {
-    ($name:ident, $pattern:literal) => {
-        static $name: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new($pattern).expect("static regex"));
-    };
-}
-
 // A bottom line that asks something has not concluded anything. The set
 // covers the question marks of the major scripts: Latin, full-width CJK,
 // Arabic, Greek (U+037E, which looks like a semicolon) and Ethiopic.
-universal!(QUESTION, r"[?\u{FF1F}\u{061F}\u{037E}\u{1367}]\s*$");
+re!(QUESTION, r"[?\u{FF1F}\u{061F}\u{037E}\u{1367}]\s*$");
 
 pub fn is_statement(value: &str) -> Check {
     if QUESTION.is_match(&strip_markdown(value)) {
@@ -281,8 +274,8 @@ pub fn is_statement(value: &str) -> Check {
 //
 // The distinction is the surrounding whitespace: a range binds tight, a clause
 // separator floats. An em-dash is rejected either way.
-universal!(EM_DASH, "\u{2014}");
-universal!(CLAUSE_EN_DASH, r"\s\u{2013}|\u{2013}\s");
+re!(EM_DASH, "\u{2014}");
+re!(CLAUSE_EN_DASH, r"\s\u{2013}|\u{2013}\s");
 
 pub fn no_clause_dashes(value: &str) -> Check {
     let prose = strip_markdown(value);
@@ -340,8 +333,7 @@ pub fn non_empty(value: &str) -> Check {
     }
 }
 
-static PLACEHOLDER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[\s.\u{2026}_-]*$").expect("static regex"));
+re!(PLACEHOLDER, r"^[\s.\u{2026}_-]*$");
 
 /// The template shipped by the prompt hook uses "..." as a placeholder. Copying
 /// it verbatim satisfies every other rule: it is one word, it hedges nothing,

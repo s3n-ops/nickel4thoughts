@@ -13,15 +13,16 @@
 
 use icu_segmenter::options::WordBreakInvariantOptions;
 use icu_segmenter::{WordSegmenter, WordSegmenterBorrowed};
-use regex::Regex;
 use std::sync::LazyLock;
 
+/// A regex compiled once per process, at first use. `rules.rs` uses it too.
 macro_rules! re {
     ($name:ident, $pattern:literal) => {
-        static $name: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new($pattern).expect("static regex"));
+        static $name: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new($pattern).expect("static regex"));
     };
 }
+pub(crate) use re;
 
 re!(CODE_SPAN, r"`[^`]*`");
 // Images and links: keep the label, drop the target.

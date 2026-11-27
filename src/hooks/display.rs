@@ -28,7 +28,7 @@
 //! deletion bug here would be both frequent and silent. State lives in one
 //! file per message that is truncated on reuse and swept by age, never removed.
 
-use crate::block;
+use crate::block::{BlockScan, Line};
 use crate::config::{self, Config};
 use crate::hooks::{log, HookInput};
 use crate::nickel::eval_answer;
@@ -269,48 +269,43 @@ fn rewrite_with(delta: &str, state: &mut State, config: &dyn Fn() -> Config) -> 
     // rather than replace it, or the first answer and everything between them
     // disappears from the screen.
     let mut rendered_here = false;
+    let mut scan = BlockScan::resume(state.inside, &state.block);
 
     for line in delta.lines() {
-        let tag = line.trim();
-        if !state.inside {
-            if tag == "```nickel" {
-                state.inside = true;
+        match scan.feed(line) {
+            Line::Outside => {
+                out.push_str(line);
+                out.push('\n');
+            }
+            Line::Open => {
                 state.block.clear();
                 if !rendered_here {
                     out.clear();
                 }
-                continue;
             }
-            out.push_str(line);
-            out.push('\n');
-            continue;
-        }
-
-        // Inside the block. Only a bare fence closes it, and only outside a
-        // field: a fenced code example inside `m%"…"%` is prose the writer put
-        // there, and closing on it would render half a record.
-        if tag == "```" && !block::StringScan::open_string_in(&state.block) {
-            state.inside = false;
-            rendered_here = true;
-            match render_block(&state.block, &config()) {
-                Some(rendered) => {
-                    out.push_str(&rendered);
-                    out.push('\n');
-                }
-                None => {
-                    // Unrenderable: show the source so the reader is not left
-                    // with a hole. The Stop hook blocks on this and a corrected
-                    // answer follows.
-                    append_source(&mut out, &state.block);
-                }
+            Line::Content => {
+                state.block.push_str(line);
+                state.block.push('\n');
             }
-            state.block.clear();
-            continue;
+            Line::Close => {
+                rendered_here = true;
+                match render_block(&state.block, &config()) {
+                    Some(rendered) => {
+                        out.push_str(&rendered);
+                        out.push('\n');
+                    }
+                    None => {
+                        // Unrenderable: show the source so the reader is not
+                        // left with a hole. The Stop hook blocks on this and a
+                        // corrected answer follows.
+                        append_source(&mut out, &state.block);
+                    }
+                }
+                state.block.clear();
+            }
         }
-
-        state.block.push_str(line);
-        state.block.push('\n');
     }
+    state.inside = scan.inside();
 
     // `lines()` drops a trailing newline the delta did not have. Restore the
     // original ending so line breaks are not silently added or removed.
@@ -420,21 +415,11 @@ fn give_up_text(state: &State, delta: &str, is_final: bool) -> String {
 /// Whether `text` ends inside a ```nickel block, by the rule `rewrite` uses to
 /// close one.
 fn ends_inside_block(text: &str) -> bool {
-    let mut inside = false;
-    let mut collected = String::new();
+    let mut scan = BlockScan::default();
     for line in text.lines() {
-        let tag = line.trim();
-        if !inside {
-            inside = tag == "```nickel";
-            collected.clear();
-        } else if tag == "```" && !block::StringScan::open_string_in(&collected) {
-            inside = false;
-        } else {
-            collected.push_str(line);
-            collected.push('\n');
-        }
+        scan.feed(line);
     }
-    inside
+    scan.inside()
 }
 
 /// Rewrites the delta once its predecessors are done. On give-up the delta is
