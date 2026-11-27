@@ -18,8 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The stable branch of rust-toolchain has no version tags, so Dependabot
-      # cannot update this SHA. Refresh it by hand from the branch head.
+      # The stable branch of rust-toolchain has no version tags. Dependabot
+      # ignores this action, refresh the SHA by hand from the branch head.
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: stable
