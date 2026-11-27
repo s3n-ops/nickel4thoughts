@@ -19,6 +19,7 @@ use nickel_lang_core::error::{Error as NickelError, IntoDiagnostics, LabelStyle}
 use nickel_lang_core::eval::cache::CacheImpl;
 use nickel_lang_core::identifier::LocIdent;
 use nickel_lang_core::program::{FieldPath, Program, ProgramBuilder};
+use std::fmt::Write as _;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
@@ -176,7 +177,7 @@ pub fn string_literal(text: &str) -> String {
         if c.is_ascii_alphanumeric() || c == ' ' {
             out.push(c);
         } else {
-            out.push_str(&format!("\\u{{{:x}}}", u32::from(c)));
+            let _ = write!(out, "\\u{{{:x}}}", u32::from(c));
         }
     }
     out.push('"');

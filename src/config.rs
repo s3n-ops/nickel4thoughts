@@ -23,7 +23,7 @@
 use crate::nickel::{eval_json, EvalError};
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -168,19 +168,22 @@ impl PhraseLists {
 
     /// Every list with its category name.
     pub fn lists(&self) -> [(&'static str, &[String]); 9] {
-        fn l(list: &Option<Vec<String>>) -> &[String] {
-            list.as_deref().unwrap_or(&[])
-        }
         [
-            ("preamble", l(&self.preamble)),
-            ("question_comment", l(&self.question_comment)),
-            ("summary", l(&self.summary)),
-            ("hedging", l(&self.hedging)),
-            ("forward_reference", l(&self.forward_reference)),
-            ("meta", l(&self.meta)),
-            ("apology", l(&self.apology)),
-            ("filler", l(&self.filler)),
-            ("spelling", l(&self.spelling)),
+            ("preamble", self.preamble.as_deref().unwrap_or_default()),
+            (
+                "question_comment",
+                self.question_comment.as_deref().unwrap_or_default(),
+            ),
+            ("summary", self.summary.as_deref().unwrap_or_default()),
+            ("hedging", self.hedging.as_deref().unwrap_or_default()),
+            (
+                "forward_reference",
+                self.forward_reference.as_deref().unwrap_or_default(),
+            ),
+            ("meta", self.meta.as_deref().unwrap_or_default()),
+            ("apology", self.apology.as_deref().unwrap_or_default()),
+            ("filler", self.filler.as_deref().unwrap_or_default()),
+            ("spelling", self.spelling.as_deref().unwrap_or_default()),
         ]
     }
 
@@ -356,11 +359,11 @@ fn compose(config: Option<&str>, packs: &[(&str, &str)]) -> String {
     out.push_str(config.unwrap_or("{}"));
     out.push_str("\n),\n  builtin = {\n");
     for (tag, source) in BUILTIN_PACKS {
-        out.push_str(&format!("    \"{tag}\" = probe (\n{source}\n),\n"));
+        let _ = write!(out, "    \"{tag}\" = probe (\n{source}\n),\n");
     }
     out.push_str("  },\n  packs = {\n");
     for (tag, source) in packs {
-        out.push_str(&format!("    \"{tag}\" = probe (\n{source}\n),\n"));
+        let _ = write!(out, "    \"{tag}\" = probe (\n{source}\n),\n");
     }
     out.push_str("  },\n}\n");
     out

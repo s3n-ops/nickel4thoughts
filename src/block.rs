@@ -3,6 +3,7 @@
 use crate::answer::{Answer, FieldViolation};
 use crate::config::Config;
 use crate::nickel::{eval_answer, line_col, EvalError};
+use std::fmt::Write as _;
 
 /// Why a block could not be turned into a valid answer.
 #[derive(Debug)]
@@ -39,9 +40,10 @@ impl BlockError {
                             .chars()
                             .take(160)
                             .collect();
-                        out.push_str(&format!(
+                        let _ = write!(
+                            out,
                             " The block breaks at line {line}, column {col}:\n\n  {culprit}"
-                        ));
+                        );
                     }
                     if let Some(hint) = parse_hint(source) {
                         out.push_str("\n\n");
@@ -129,27 +131,14 @@ fn continues_as_code(rest: &str) -> bool {
 /// cannot span lines and therefore cannot hide a fence. A `#` comment ends the
 /// scan of its line, so an opener quoted in a comment opens nothing.
 #[derive(Default)]
-pub struct StringScan {
+struct StringScan {
     /// The length of the `%` run of the open multiline string, if any.
     open: Option<usize>,
 }
 
 impl StringScan {
-    pub fn inside(&self) -> bool {
+    fn inside(&self) -> bool {
         self.open.is_some()
-    }
-
-    /// Whether a bare fence would close the block after this text.
-    ///
-    /// The display hook keeps the block it has collected so far but not the
-    /// scanner, so the state is rebuilt from that text on each batch. The block
-    /// is one answer's record, so rescanning it is cheap.
-    pub fn open_string_in(text: &str) -> bool {
-        let mut scan = StringScan::default();
-        for line in text.lines() {
-            scan.feed(line);
-        }
-        scan.inside()
     }
 
     /// Feeds one line to the scanner.
@@ -219,39 +208,91 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b == b'\''
 }
 
-/// Extracts the first ```nickel block from a message.
-///
-/// Only a bare fence closes the block, so a nested ```rust inside it does not
-/// end it early. A bare fence inside a Nickel multiline string does not close
-/// it either: fields hold Markdown, and a fenced code example is prose the
-/// writer put there on purpose. Returns `None` when the message has no such
-/// block.
+/// Extracts the first ```nickel block from a message, by the rules of
+/// `BlockScan`. Returns `None` when the message has no such block.
 pub fn extract(text: &str) -> Option<String> {
-    let mut inside = false;
+    let mut scan = BlockScan::default();
     let mut collected: Vec<&str> = Vec::new();
-    let mut strings = StringScan::default();
 
     for line in text.lines() {
-        let trimmed = line.trim_end();
-        if !inside {
-            if trimmed.trim_start() == "```nickel" {
-                inside = true;
-            }
-            continue;
+        match scan.feed(line) {
+            Line::Outside | Line::Open => {}
+            Line::Content => collected.push(line),
+            Line::Close => return Some(collected.join("\n")),
         }
-        if !strings.inside() && trimmed.trim_start() == "```" {
-            return Some(collected.join("\n"));
-        }
-        strings.feed(line);
-        collected.push(line);
     }
 
     // An unterminated block is still worth evaluating: the writer will get a
     // parse error naming the real problem instead of "no block found".
-    if inside {
-        Some(collected.join("\n"))
-    } else {
-        None
+    scan.inside().then(|| collected.join("\n"))
+}
+
+/// What one line is to the ```nickel block around it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Line {
+    /// Text outside any block.
+    Outside,
+    /// The opening ```nickel fence.
+    Open,
+    /// A line of the record.
+    Content,
+    /// The bare fence that ends the block.
+    Close,
+}
+
+/// Finds ```nickel blocks line by line. The extractor and the display hook
+/// both use it, so the two agree on where a block starts and ends.
+///
+/// Only a bare fence closes the block, so a nested ```rust inside it does not
+/// end it early. A bare fence inside a Nickel multiline string does not close
+/// it either: fields hold Markdown, and a fenced code example is prose the
+/// writer put there on purpose.
+#[derive(Default)]
+pub struct BlockScan {
+    inside: bool,
+    strings: StringScan,
+}
+
+impl BlockScan {
+    /// Continues a scan from saved state: whether a block is open, and the
+    /// lines collected inside it so far.
+    ///
+    /// The display hook stores the collected text between calls, not the
+    /// scanner, so the string state is rebuilt from that text.
+    pub fn resume(inside: bool, collected: &str) -> BlockScan {
+        let mut scan = BlockScan {
+            inside,
+            strings: StringScan::default(),
+        };
+        if inside {
+            for line in collected.lines() {
+                scan.strings.feed(line);
+            }
+        }
+        scan
+    }
+
+    pub fn inside(&self) -> bool {
+        self.inside
+    }
+
+    /// Classifies one line and advances the scan past it.
+    pub fn feed(&mut self, line: &str) -> Line {
+        let tag = line.trim();
+        if !self.inside {
+            if tag == "```nickel" {
+                self.inside = true;
+                self.strings = StringScan::default();
+                return Line::Open;
+            }
+            return Line::Outside;
+        }
+        if tag == "```" && !self.strings.inside() {
+            self.inside = false;
+            return Line::Close;
+        }
+        self.strings.feed(line);
+        Line::Content
     }
 }
 
@@ -345,6 +386,17 @@ mod tests {
         let block = extract(text).expect("block");
         assert!(block.contains("b = 1"), "{block}");
         assert!(!block.contains("prose"), "{block}");
+    }
+
+    // The display hook resumes from the text it saved. A field still open in
+    // that text must keep its fences from closing the block.
+    #[test]
+    fn a_resumed_scan_remembers_an_open_field() {
+        let mut scan = BlockScan::resume(true, "a = m%\"\nText\n");
+        assert_eq!(scan.feed("```"), Line::Content);
+        assert_eq!(scan.feed("\"%,"), Line::Content);
+        assert_eq!(scan.feed("```"), Line::Close);
+        assert!(!scan.inside());
     }
 
     #[test]
