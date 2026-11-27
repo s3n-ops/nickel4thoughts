@@ -12,10 +12,12 @@ updates:
       cargo:
         update-types: [minor, patch]
       # All security fixes in one pull request, since pull requests merge
-      # one at a time.
+      # one at a time. nickel-lang-core stays out, so a breaking bump cannot
+      # block the other fixes.
       cargo-security:
         applies-to: security-updates
         patterns: ["*"]
+        exclude-patterns: [nickel-lang-core]
 
   # Workflows pin actions to commit SHAs. Dependabot replaces the SHA and the
   # version comment behind it when a new release tag appears.
@@ -23,6 +25,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Follows the stable branch, which has no version tags. Dependabot
+      # could move the SHA to another branch, so it is refreshed by hand.
+      - dependency-name: dtolnay/rust-toolchain
     groups:
       actions-security:
         applies-to: security-updates
